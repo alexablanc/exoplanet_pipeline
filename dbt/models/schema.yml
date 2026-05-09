@@ -1,0 +1,130 @@
+version: 2
+
+sources:
+  - name: nasa_api
+    description: NASA Exoplanet Archive public API data
+    database: exoplanet_pipeline
+    tables:
+      - name: raw_exoplanet_data
+        description: Raw exoplanet records from NASA Exoplanet Archive (ps_default table)
+        columns:
+          - name: pl_name
+            description: Planet name
+          - name: pl_hostname
+            description: Host star name
+          - name: pl_prad
+            description: Planet radius in Earth radii
+          - name: pl_bmasse
+            description: Planet mass in Earth masses
+          - name: pl_orbper
+            description: Orbital period in days
+          - name: pl_eqt
+            description: Equilibrium temperature in Kelvin
+          - name: pl_discmethod
+            description: Discovery method
+          - name: pl_disc_year
+            description: Discovery year
+
+models:
+  - name: stg_exoplanets
+    description: Staging layer - raw NASA exoplanet data with minimal transformations
+    columns:
+      - name: planet_name
+        description: Primary identifier for the exoplanet
+        tests:
+          - unique
+          - not_null
+      - name: host_star_name
+        description: Name of the host star
+        tests:
+          - not_null
+      - name: planet_radius_earth_radii
+        description: Planet radius in Earth radii
+      - name: planet_mass_earth_masses
+        description: Planet mass in Earth masses
+      - name: orbital_period_days
+        description: Orbital period in days
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0.1
+              max_value: 100000
+      - name: discovery_year
+        description: Year the planet was discovered
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 1992
+              max_value: 2026
+
+  - name: int_exoplanets_enriched
+    description: Intermediate layer - enriched exoplanet data with derived metrics
+    columns:
+      - name: planet_name
+        description: Exoplanet identifier
+      - name: planet_type
+        description: Classification of planet type (Earth-sized, Neptune-sized, Jupiter-sized, etc.)
+      - name: habitability_classification
+        description: Simplified habitability zone classification
+      - name: planet_density_earth_densities
+        description: Derived planet density relative to Earth
+
+  - name: int_discovery_trends
+    description: Intermediate layer - aggregated discovery statistics and trends
+    columns:
+      - name: trend_type
+        description: Type of trend aggregation (by_year, by_method, by_star_type)
+      - name: dimension
+        description: The dimension value for the trend
+      - name: planets_discovered
+        description: Count of planets in this dimension
+      - name: unique_stars
+        description: Count of unique host stars
+
+  - name: fct_exoplanets
+    description: Fact table - core exoplanet properties and characteristics
+    columns:
+      - name: planet_id
+        description: Surrogate key for exoplanet
+        tests:
+          - unique
+          - not_null
+      - name: planet_name
+        description: Exoplanet name
+        tests:
+          - not_null
+      - name: host_star_name
+        description: Host star name
+        tests:
+          - not_null
+      - name: planet_radius_earth_radii
+        description: Planet radius in Earth radii
+      - name: planet_mass_earth_masses
+        description: Planet mass in Earth masses
+      - name: orbital_period_days
+        description: Orbital period in days
+      - name: equilibrium_temperature_k
+        description: Equilibrium temperature in Kelvin
+      - name: habitability_classification
+        description: Habitability zone classification
+      - name: discovery_method
+        description: Method used to discover the planet
+      - name: discovery_year
+        description: Year of discovery
+      - name: data_completeness
+        description: Data quality indicator (Complete, Partial, Minimal)
+
+  - name: dim_discovery_analysis
+    description: Dimension table - discovery trends and statistics
+    columns:
+      - name: discovery_trend_id
+        description: Surrogate key for discovery trend
+        tests:
+          - unique
+          - not_null
+      - name: trend_type
+        description: Type of trend (by_year, by_method, by_star_type)
+      - name: dimension
+        description: Dimension value
+      - name: planets_discovered
+        description: Count of planets discovered
+      - name: discovery_intensity
+        description: Derived discovery intensity classification

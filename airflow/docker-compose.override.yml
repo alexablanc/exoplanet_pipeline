@@ -1,0 +1,19 @@
+version: '3'
+services:
+  scheduler:
+    volumes:
+      - /Users/nopassword/Documents/Portfolio/exoplanets:/Users/nopassword/Documents/Portfolio/exoplanets
+
+  exoplanet_db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: exoplanet_user
+      POSTGRES_PASSWORD: exoplanet_pass
+      POSTGRES_DB: exoplanets
+    ports:
+      - "5433:5432"
+    volumes:
+      - exoplanet_pg_data:/var/lib/postgresql/data
+
+volumes:
+  exoplanet_pg_data:

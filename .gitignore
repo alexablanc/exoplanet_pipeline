@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+
+# dbt
+target/
+dbt_packages/
+logs/
+*.db
+*.sqlite
+dbt_project.yml.bak
+
+# Airflow
+airflow/logs/
+airflow/dags/__pycache__/
+airflow.db
+airflow.cfg.bak
+.airflowignore
+
+# Data files — fetched at runtime, not stored in repo
+data/raw/
+data/processed/
+*.csv
+*.json
+*.parquet
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+EXAMPLE_QUERIES.md

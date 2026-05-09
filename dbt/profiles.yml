@@ -1,0 +1,22 @@
+exoplanet_pipeline:
+  target: dev
+  outputs:
+    dev:
+      type: sqlite
+      threads: 4
+      database: 'exoplanet_pipeline'
+      schema: 'main'
+      dir: './target'
+      timeout_seconds: 300
+      
+    prod:
+      type: postgres
+      host: "{{ env_var('DBT_POSTGRES_HOST', 'localhost') }}"
+      user: "{{ env_var('DBT_POSTGRES_USER', 'postgres') }}"
+      password: "{{ env_var('DBT_POSTGRES_PASSWORD', 'postgres') }}"
+      port: "{{ env_var('DBT_POSTGRES_PORT', '5432') }}"
+      dbname: exoplanet_pipeline
+      schema: public
+      threads: 4
+      keepalives_idle: 0
+      timeout_seconds: 300
