@@ -30,7 +30,6 @@ airflow.cfg.bak
 .airflowignore
 
 # Data files — fetched at runtime, not stored in repo
-data/raw/
 data/processed/
 *.csv
 *.json

@@ -1,6 +1,6 @@
 # NASA Exoplanet Pipeline
 
-Processing 6,150+ confirmed exoplanets from NASA's Exoplanet Archive. Orchestrated using Airflow and dbt.
+End-to-end data engineering pipeline that ingests 6,150+ exoplanet records from NASA's Exoplanet Archive API, loads them into Snowflake, and transforms them into analytics-ready dimensional models using dbt. Orchestrated daily with Apache Airflow on Astronomer.
 
 ---
 
@@ -8,11 +8,11 @@ Processing 6,150+ confirmed exoplanets from NASA's Exoplanet Archive. Orchestrat
 
 ### What This Project Does
 
-1. **Ingests** exoplanet data from NASA's public Exoplanet Archive API (6,150+ records, continuously updated)
-2. **Transforms** raw data through a medallion architecture (staging → intermediate → marts)
-3. **Orchestrates** the entire pipeline with Apache Airflow DAGs
-4. **Validates** data quality with dbt tests and custom checks
-5. **Documents** all models, tests, and lineage via dbt
+1. **Ingests** exoplanet data from NASA's public Exoplanet Archive API (6,150+ records, updated daily)
+2. **Loads** raw data directly into a Snowflake raw table using Airflow's `SnowflakeHook`
+3. **Transforms** data through a medallion architecture (staging → intermediate → marts) using dbt
+4. **Validates** data quality with Airflow SQL checks and dbt built-in and custom tests
+5. **Documents** all models, tests, and lineage via dbt docs
 
 ---
 
@@ -21,11 +21,11 @@ Processing 6,150+ confirmed exoplanets from NASA's Exoplanet Archive. Orchestrat
 ```
 NASA Exoplanet Archive API
          ↓
-    [Fetch Task]
+    [Fetch & Load Task]
          ↓
-    Raw CSV Data
+  Snowflake: EXOPLANETS_DB.RAW.RAW_EXOPLANET_DATA
          ↓
-    [Validate Task]
+    [Validate Task — SQL row count & null checks]
          ↓
     Staging Layer (stg_exoplanets)
          ↓
@@ -35,251 +35,239 @@ NASA Exoplanet Archive API
          ↓
     [dbt Tests & Quality Checks]
          ↓
-    Analytics-Ready Tables
+    Analytics-Ready Snowflake Tables
 ```
+
+---
+
+## Tech Stack
+
+| Tool | Purpose |
+|---|---|
+| **Apache Airflow (Astronomer)** | Pipeline orchestration and scheduling |
+| **Snowflake** | Cloud data warehouse — raw ingestion and analytics layer |
+| **dbt (data build tool)** | SQL transformations, testing, and documentation |
+| **NASA Exoplanet Archive API** | Data source |
+| **Python** | API client, data parsing, Airflow operators |
+| **Docker** | Local development environment via Astro CLI |
+
+---
+
+## Project Structure
+
+```text
+exoplanet_pipeline/
+├── airflow/
+│   ├── dags/
+│   │   └── exoplanet_pipeline.py     # Main Airflow DAG
+│   ├── scripts/
+│   │   └── fetch_nasa_data.py        # Pure Python NASA API client
+│   ├── Dockerfile                    # Astro Runtime image
+│   └── requirements.txt              # Airflow container dependencies
+├── dbt/
+│   ├── models/
+│   │   ├── staging/                  # Type casting, renaming, deduplication
+│   │   ├── intermediate/             # Derived metrics and enrichment
+│   │   └── marts/                    # Fact and dimension tables
+│   ├── tests/specific/               # Custom SQL data quality tests
+│   ├── dbt_project.yml               # dbt project configuration
+│   └── profiles.yml                  # Snowflake connection profile
+├── .env.example                      # Template for environment variables
+└── requirements.txt                  # Local dev dependencies
+```
+
 ---
 
 ## Data Models
 
-### Staging Layer: 
-#### `stg_exoplanets`
+### Staging Layer
 
-- **Purpose**: Ingest raw NASA API data with minimal transformation
-- **Operations**: Column standardization, type casting, deduplication
+#### `stg_exoplanets`
+- **Purpose**: Read raw Snowflake data with minimal transformation
+- **Operations**: Column renaming, `try_cast` type conversions, deduplication by `planet_name`
+- **Source**: `EXOPLANETS_DB.RAW.RAW_EXOPLANET_DATA`
 - **Grain**: One row per exoplanet
 
 ### Intermediate Layer
 
 #### `int_exoplanets_enriched`
-- Adds derived metrics: planet density, habitability classification, planet type
-- Enriches with calculated fields and business logic
-- Maintains grain: one row per exoplanet
+- **Purpose**: Enrich staging data with derived metrics
+- **Operations**: Planet density calculation, habitability zone classification, planet type classification
+- **Grain**: One row per exoplanet
 
 #### `int_discovery_trends`
-- Aggregates discovery statistics by year, method, and stellar host type
-- Provides insights into discovery velocity and patterns
-- Grain: one row per discovery trend dimension
+- **Purpose**: Aggregate discovery statistics across multiple dimensions
+- **Operations**: Group by discovery year, discovery method, and stellar host type
+- **Grain**: One row per discovery trend dimension
 
 ### Mart Layer
 
 #### `fct_exoplanets` (Fact Table)
-- **Grain**: One row per exoplanet
-- **Key fields**: planet properties, orbital characteristics, thermal properties, discovery info
-- **Indexes**: planet_name, host_star_name, discovery_year, habitability_classification
 - **Purpose**: Core analytics table for exoplanet queries
+- **Key fields**: Planet properties, orbital characteristics, thermal properties, discovery metadata
+- **Grain**: One row per exoplanet
 
 #### `dim_discovery_analysis` (Dimension Table)
-- **Grain**: One row per discovery trend aggregation
-- **Key fields**: trend type, dimension, aggregated metrics, discovery intensity
 - **Purpose**: Support discovery analytics and reporting
+- **Key fields**: Trend type, dimension, aggregated metrics, discovery intensity classification
+- **Grain**: One row per discovery trend aggregation
 
 ---
 
 ## Setup & Installation
 
 ### Prerequisites
-
 - Python 3.9+
-- pip or conda
-- SQL app for production
+- [Astro CLI](https://docs.astronomer.io/astro/cli/install-cli)
+- A Snowflake account
 
-### 1. Clone & Navigate
+### 1. Snowflake Setup
 
-```bash
-git clone https://github.com/alexablanc/exoplanet-pipeline.git
-cd exoplanet-pipeline
+Before running the pipeline, create the required Snowflake objects by running this SQL in your Snowflake worksheet:
+
+```sql
+-- Create the database
+CREATE DATABASE IF NOT EXISTS EXOPLANETS_DB;
+USE DATABASE EXOPLANETS_DB;
+
+-- Create schemas for each pipeline layer
+CREATE SCHEMA IF NOT EXISTS RAW;           -- raw API data loaded by Airflow
+CREATE SCHEMA IF NOT EXISTS ANALYTICS_DEV; -- dbt dev target
+CREATE SCHEMA IF NOT EXISTS ANALYTICS_PROD;-- dbt prod target
+
+-- Create a warehouse to run queries
+CREATE WAREHOUSE IF NOT EXISTS COMPUTE_WH
+WITH WAREHOUSE_SIZE = 'XSMALL'
+AUTO_SUSPEND = 60
+AUTO_RESUME = TRUE;
 ```
 
-### 2. Create Virtual Environment
+### 2. Clone & Install Dependencies
 
 ```bash
+git clone https://github.com/alexablanc/exoplanet_pipeline.git
+cd exoplanet_pipeline
+
 python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-### 3. Install Dependencies
-
-```bash
+source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 4. Configure dbt
+### 3. Configure Environment Variables
 
 ```bash
-# Copy profiles.yml to dbt config directory (if needed)
-mkdir -p ~/.dbt
-cp dbt/profiles.yml ~/.dbt/profiles.yml
+cp .env.example .env
+# Open .env and fill in your Snowflake account, user, and password
 ```
 
-### 5. Fetch Initial Data
+### 4. Configure the Airflow Snowflake Connection
+
+Start the Airflow environment and create the connection in the UI:
 
 ```bash
-python scripts/fetch_nasa_data.py --output data/raw/exoplanets.csv
+astro dev start
 ```
 
-### 6. Run dbt
+In the Airflow UI at `http://localhost:8080`, go to **Admin → Connections** and create:
 
-```bash
-cd dbt
-dbt deps
-dbt debug 
-dbt run  
-dbt test 
-```
+| Field | Value |
+|---|---|
+| Conn Id | `snowflake_default` |
+| Conn Type | `Snowflake` |
+| Schema | `RAW` |
+| Login | Your Snowflake username |
+| Password | Your Snowflake password |
+| Account | Your account identifier (e.g. `xy12345.us-east-1`) |
+| Database | `EXOPLANETS_DB` |
+| Warehouse | `COMPUTE_WH` |
+| Role | `SYSADMIN` |
 
 ---
 
 ## Running the Pipeline
 
-### Option 1: Manual Execution (Development)
+### Option 1: Airflow Orchestration (Recommended)
+
+Once the Airflow connection is configured, unpause and trigger the `exoplanet_pipeline` DAG from the Airflow UI. The pipeline runs daily at 2 AM UTC.
+
+```
+fetch_and_load_nasa_data → validate_snowflake_data → dbt_transformations
+                                                          ↓
+                                               dbt_run → dbt_test → dbt_docs_generate
+```
+
+### Option 2: Local dbt Execution
 
 ```bash
-# Fetch data
-python scripts/fetch_nasa_data.py
+source .env
 
-# Run dbt transformations
-cd dbt && dbt run && dbt test
-
-# Generate documentation
-dbt docs generate
-dbt docs serve  # View at http://localhost:8000
-```
-
-### Option 2: Airflow Orchestration
-
-```bash
-# Initialize Airflow
-export AIRFLOW_HOME=./airflow
-airflow db init
-
-# Create admin user
-airflow users create \
-  --username admin \
-  --firstname Admin \
-  --lastname User \
-  --role Admin \
-  --email admin@example.com
-
-# Start Airflow scheduler and webserver
-airflow scheduler &
-airflow webserver --port 8080
-
-# Access at http://localhost:8080
-# Trigger DAG: exoplanet_pipeline
-```
-
----
-
-## Example Queries
-
-Once the pipeline runs, you can query the analytics-ready tables:
-
-### Find habitable exoplanets
-
-```sql
-select
-  planet_name,
-  host_star_name,
-  equilibrium_temperature_k,
-  planet_radius_earth_radii,
-  orbital_period_days
-from fct_exoplanets
-where habitability_classification = 'Habitable Zone'
-order by equilibrium_temperature_k desc;
-```
-
-### Discovery trends by year
-
-```sql
-select
-  dimension as discovery_year,
-  planets_discovered,
-  unique_stars,
-  avg_equilibrium_temp_k,
-  discovery_intensity
-from dim_discovery_analysis
-where trend_type = 'by_year'
-order by dimension desc;
-```
-
-### Most common discovery methods
-
-```sql
-select
-  dimension as discovery_method,
-  planets_discovered,
-  first_discovery_year,
-  most_recent_discovery_year
-from dim_discovery_analysis
-where trend_type = 'by_method'
-order by planets_discovered desc;
+cd dbt
+dbt deps
+dbt run
+dbt test
+dbt docs generate && dbt docs serve  # View docs at http://localhost:8080
 ```
 
 ---
 
 ## Data Quality & Testing
 
-### dbt Tests Included
+Data quality is enforced at two stages:
 
-- **Uniqueness**: Exoplanet names are unique in fact table
-- **Not Null**: Critical fields (planet name, host star, discovery year)
-- **Range Validation**: Discovery years between 1992-2026
-- **Orbital Period**: Positive values within realistic range
+**Airflow Validation Task** runs SQL directly against Snowflake after ingestion:
+- Verifies row count is greater than zero
+- Reports null counts for critical columns (`kepler_name`, `koi_disposition`)
 
-### Running Tests
-
-```bash
-cd dbt
-dbt test  # Run all tests
-dbt test --select stg_exoplanets  # Run tests for specific model
-dbt test --select test_exoplanets_unique  # Run specific test
-```
+**dbt Tests** run after every transformation:
+- `unique` and `not_null` checks on surrogate keys and critical fields
+- Range validation on discovery years (1992–2026) and orbital periods
+- Custom test `test_exoplanets_unique.sql` — no duplicate planets in the fact table
+- Custom test `test_discovery_dates_valid.sql` — all discovery dates within valid bounds
 
 ---
 
-## Configuration
+## Example Queries
 
-### Environment Variables
+### Find Habitable Exoplanets
 
-Create a `.env` file for production configuration:
-
-```env
-# Database (PostgreSQL`)
-DBT_POSTGRES_HOST=localhost
-DBT_POSTGRES_USER=postgres
-DBT_POSTGRES_PASSWORD=your_password
-DBT_POSTGRES_PORT=5432
-
-# Airflow
-AIRFLOW_HOME=./airflow
-AIRFLOW__CORE__DAGS_FOLDER=./airflow/dags
-AIRFLOW__CORE__LOAD_EXAMPLES=false
+```sql
+SELECT
+  planet_name,
+  host_star_name,
+  equilibrium_temperature_k,
+  planet_radius_earth_radii,
+  orbital_period_days
+FROM EXOPLANETS_DB.ANALYTICS_DEV.fct_exoplanets
+WHERE habitability_classification = 'Habitable Zone'
+ORDER BY equilibrium_temperature_k DESC;
 ```
 
-### dbt Variables
+### Discovery Trends by Year
 
-Modify `dbt/dbt_project.yml` to adjust:
+```sql
+SELECT
+  dimension          AS discovery_year,
+  planets_discovered,
+  unique_stars,
+  avg_equilibrium_temp_k,
+  discovery_intensity
+FROM EXOPLANETS_DB.ANALYTICS_DEV.dim_discovery_analysis
+WHERE trend_type = 'by_year'
+ORDER BY dimension DESC;
+```
 
-- `nasa_api_base_url`: NASA API endpoint
-- `min_discovery_year`, `max_discovery_year`: Validation ranges
-- `data_freshness_days`: Alert threshold for stale data
+### Most Common Discovery Methods
 
----
-
-## Performance & Scalability
-
-### Current Capacity
-
-- **Records**: 6,150+ exoplanets
-- **Execution Time**: ~2-5 minutes (API fetch + transformation)
-- **Database**: SQLite (dev) or PostgreSQL (prod)
-
-### Scaling Strategies
-
-1. **Incremental Models**: Add `+incremental_strategy: merge` to fact tables
-2. **Partitioning**: Partition by `discovery_year` for large datasets
-3. **Distributed Execution**: Run Airflow on Kubernetes or Celery
-4. **Caching**: Implement dbt snapshot for historical tracking
+```sql
+SELECT
+  dimension          AS discovery_method,
+  planets_discovered,
+  avg_planet_radius,
+  avg_equilibrium_temp_k
+FROM EXOPLANETS_DB.ANALYTICS_DEV.dim_discovery_analysis
+WHERE trend_type = 'by_method'
+ORDER BY planets_discovered DESC;
+```
 
 ---
 
@@ -287,7 +275,6 @@ Modify `dbt/dbt_project.yml` to adjust:
 
 - [NASA Exoplanet Archive API](https://exoplanetarchive.ipac.caltech.edu/docs/program_interfaces.html)
 - [dbt Documentation](https://docs.getdbt.com/)
-- [Apache Airflow Documentation](https://airflow.apache.org/docs/)
+- [Apache Airflow (Astronomer)](https://www.astronomer.io/docs/)
+- [Snowflake Documentation](https://docs.snowflake.com/)
 - [Medallion Architecture](https://www.databricks.com/blog/2022/06/24/use-the-medallion-lakehouse-architecture-to-build-data-platforms-on-databricks.html)
-
----

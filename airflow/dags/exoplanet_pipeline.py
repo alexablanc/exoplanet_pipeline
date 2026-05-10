@@ -187,7 +187,4 @@ with TaskGroup("dbt_transformations", dag=dag) as dbt_group:
 
     dbt_run >> dbt_test >> dbt_docs
 
-
-    dbt_run >> dbt_test >> dbt_docs
-
 fetch_task >> validate_task >> dbt_group
