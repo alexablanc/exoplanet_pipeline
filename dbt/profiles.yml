@@ -1,22 +1,40 @@
+# dbt Connection Profiles — Exoplanet Pipeline
+# ---------------------------------------------
+# Credentials are read from environment variables so that no secrets
+# are ever committed to source control.
+#
+# Set the following environment variables before running dbt:
+#   DBT_SNOWFLAKE_ACCOUNT   — your Snowflake account identifier (e.g. xy12345.us-east-1)
+#   DBT_SNOWFLAKE_USER      — your Snowflake username
+#   DBT_SNOWFLAKE_PASSWORD  — your Snowflake password
+#   DBT_SNOWFLAKE_ROLE      — (optional) defaults to SYSADMIN
+#   DBT_SNOWFLAKE_DATABASE  — (optional) defaults to EXOPLANETS_DB
+#   DBT_SNOWFLAKE_WAREHOUSE — (optional) defaults to COMPUTE_WH
+
 exoplanet_pipeline:
   target: dev
   outputs:
+
     dev:
-      type: sqlite
+      type: snowflake
+      account: "{{ env_var('DBT_SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('DBT_SNOWFLAKE_USER') }}"
+      password: "{{ env_var('DBT_SNOWFLAKE_PASSWORD') }}"
+      role: "{{ env_var('DBT_SNOWFLAKE_ROLE', 'SYSADMIN') }}"
+      database: "{{ env_var('DBT_SNOWFLAKE_DATABASE', 'EXOPLANETS_DB') }}"
+      warehouse: "{{ env_var('DBT_SNOWFLAKE_WAREHOUSE', 'COMPUTE_WH') }}"
+      schema: "ANALYTICS_DEV"
       threads: 4
-      database: 'exoplanet_pipeline'
-      schema: 'main'
-      dir: './target'
-      timeout_seconds: 300
-      
+      client_session_keep_alive: false
+
     prod:
-      type: postgres
-      host: "{{ env_var('DBT_POSTGRES_HOST', 'localhost') }}"
-      user: "{{ env_var('DBT_POSTGRES_USER', 'postgres') }}"
-      password: "{{ env_var('DBT_POSTGRES_PASSWORD', 'postgres') }}"
-      port: "{{ env_var('DBT_POSTGRES_PORT', '5432') }}"
-      dbname: exoplanet_pipeline
-      schema: public
+      type: snowflake
+      account: "{{ env_var('DBT_SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('DBT_SNOWFLAKE_USER') }}"
+      password: "{{ env_var('DBT_SNOWFLAKE_PASSWORD') }}"
+      role: "{{ env_var('DBT_SNOWFLAKE_ROLE', 'SYSADMIN') }}"
+      database: "{{ env_var('DBT_SNOWFLAKE_DATABASE', 'EXOPLANETS_DB') }}"
+      warehouse: "{{ env_var('DBT_SNOWFLAKE_WAREHOUSE', 'COMPUTE_WH') }}"
+      schema: "ANALYTICS_PROD"
       threads: 4
-      keepalives_idle: 0
-      timeout_seconds: 300
+      client_session_keep_alive: false

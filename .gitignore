@@ -51,4 +51,5 @@ data/processed/
 # OS
 .DS_Store
 Thumbs.db
+
 EXAMPLE_QUERIES.md

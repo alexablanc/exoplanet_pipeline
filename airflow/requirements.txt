@@ -1,1 +1,16 @@
-# Astro Runtime includes the following pre-installed providers packages: https://www.astronomer.io/docs/astro/runtime-image-architecture#provider-packages
+# Astro Runtime includes the following pre-installed providers packages:
+# https://www.astronomer.io/docs/astro/runtime-image-architecture#provider-packages
+#
+# Only add packages here that are NOT already included in the Astro Runtime image.
+# These are installed into the Airflow Docker container at build time.
+
+# Snowflake provider — required for SnowflakeHook used in the DAG
+apache-airflow-providers-snowflake==5.3.0
+
+# Data processing — used by PythonOperators in the DAG
+pandas==2.1.4
+numpy==1.24.3
+
+# HTTP requests — used by fetch_nasa_data.py inside the DAG tasks
+requests==2.31.0
+

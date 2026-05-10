@@ -1,19 +1,12 @@
 version: '3'
+
+# docker-compose.override.yml
+# ----------------------------
+# Overrides for local development with Astro CLI.
+# The Postgres service has been removed — data is now stored in Snowflake.
+# The scheduler volume mount gives the container access to your local project files.
+
 services:
   scheduler:
     volumes:
-      - /Users/nopassword/Documents/Portfolio/exoplanets:/Users/nopassword/Documents/Portfolio/exoplanets
-
-  exoplanet_db:
-    image: postgres:15
-    environment:
-      POSTGRES_USER: exoplanet_user
-      POSTGRES_PASSWORD: exoplanet_pass
-      POSTGRES_DB: exoplanets
-    ports:
-      - "5433:5432"
-    volumes:
-      - exoplanet_pg_data:/var/lib/postgresql/data
-
-volumes:
-  exoplanet_pg_data:
+      - /Users/nopassword/Documents/Portfolio/exoplanets:/usr/local/airflow/exoplanets

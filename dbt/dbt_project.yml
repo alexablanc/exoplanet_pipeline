@@ -1,77 +1,91 @@
-
 name: 'exoplanet_pipeline'
 version: '1.0.0'
 config-version: 2
 
-# Profile for dbt to use
+# Profile to use — matches the key in dbt/profiles.yml
 profile: 'exoplanet_pipeline'
 
 # Project directories
-model-paths: ["models"]
+model-paths:    ["models"]
 analysis-paths: ["analysis"]
-test-paths: ["tests"]
-data-paths: ["seeds"]
-macro-paths: ["macros"]
+test-paths:     ["tests"]
+data-paths:     ["seeds"]
+macro-paths:    ["macros"]
 snapshot-paths: ["snapshots"]
-target-path: "target"
+target-path:    "target"
 clean-targets:
   - "target"
   - "dbt_packages"
 
+# ---------------------------------------------------------------------------
 # Model configurations
+# Each layer has a default materialization and schema.
+# Snowflake will create these as: EXOPLANETS_DB.ANALYTICS_DEV_<schema>
+# e.g. EXOPLANETS_DB.ANALYTICS_DEV_STAGING, EXOPLANETS_DB.ANALYTICS_DEV_MARTS
+# ---------------------------------------------------------------------------
 models:
   exoplanet_pipeline:
     staging:
       +materialized: view
       +schema: staging
       +tags: ["staging"]
-    
+
     intermediate:
       +materialized: view
       +schema: intermediate
       +tags: ["intermediate"]
-    
+
     marts:
       +materialized: table
       +schema: marts
       +tags: ["marts"]
-      +indexes:
-        - columns: ["planet_id"]
-        - columns: ["host_star_name"]
-        - columns: ["discovery_year"]
+      # Note: +indexes removed — Snowflake manages query optimization automatically
+      # and does not support manually defined indexes like Postgres does.
 
+# ---------------------------------------------------------------------------
 # Seed configurations
+# ---------------------------------------------------------------------------
 seeds:
   exoplanet_pipeline:
     +schema: seeds
     +tags: ["seeds"]
 
+# ---------------------------------------------------------------------------
 # Test configurations
+# ---------------------------------------------------------------------------
 tests:
   exoplanet_pipeline:
     +tags: ["tests"]
 
-# Variables
+# ---------------------------------------------------------------------------
+# Project variables
+# Reusable values referenced in SQL models with {{ var('variable_name') }}
+# ---------------------------------------------------------------------------
 vars:
   # NASA API configuration
   nasa_api_base_url: "https://exoplanetarchive.ipac.caltech.edu/cgi-bin/nstedAPI/nph-nstedAPI"
   nasa_api_table: "ps_default"
-  
+
   # Data quality thresholds
   min_discovery_year: 1992
   max_discovery_year: 2026
   min_orbital_period_days: 0.1
   max_equilibrium_temp_k: 5000
-  
+
   # Freshness checks
   data_freshness_days: 7
 
+# ---------------------------------------------------------------------------
 # Quoting strategy
+# Snowflake is case-insensitive by default so quoting is disabled.
+# ---------------------------------------------------------------------------
 quoting:
   identifier: false
   schema: false
 
-# Dispatch configuration
+# ---------------------------------------------------------------------------
+# Dispatch configuration for dbt_utils macros
+# ---------------------------------------------------------------------------
 dispatch:
   - macro_namespace: dbt_utils
     search_order: ['exoplanet_pipeline', 'dbt_utils']

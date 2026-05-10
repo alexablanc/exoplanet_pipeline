@@ -1,43 +1,55 @@
+# Defines the raw Snowflake table that the staging layer reads from.
+# This table is populated by the Airflow fetch_and_load_nasa_data task.
 version: 2
-
 sources:
   - name: nasa_api
-    description: NASA Exoplanet Archive public API data
-    database: exoplanet_pipeline
+    description: "Raw NASA Exoplanet Archive data loaded by the Airflow pipeline."
+    database: EXOPLANETS_DB
+    schema: RAW
     tables:
       - name: raw_exoplanet_data
-        description: Raw exoplanet records from NASA Exoplanet Archive (ps_default table)
+        description: >
+          Full daily refresh of exoplanet records fetched from the NASA Exoplanet
+          Archive cumulative table. All columns are VARCHAR; type casting is
+          handled in the staging dbt model.
         columns:
-          - name: pl_name
-            description: Planet name
-          - name: pl_hostname
-            description: Host star name
-          - name: pl_prad
-            description: Planet radius in Earth radii
-          - name: pl_bmasse
-            description: Planet mass in Earth masses
-          - name: pl_orbper
-            description: Orbital period in days
-          - name: pl_eqt
-            description: Equilibrium temperature in Kelvin
-          - name: pl_discmethod
-            description: Discovery method
-          - name: pl_disc_year
-            description: Discovery year
+          - name: kepler_name
+            description: Kepler Object of Interest name (e.g. Kepler-22 b)
+          - name: koi_period
+            description: Orbital period in days (raw string from API)
+          - name: koi_teq
+            description: Equilibrium temperature in Kelvin (raw string from API)
+          - name: koi_prad
+            description: Planet radius in Earth radii (raw string from API)
+          - name: koi_smass
+            description: Stellar mass in solar masses (raw string from API)
+          - name: koi_disposition
+            description: Exoplanet disposition (CONFIRMED, CANDIDATE, FALSE POSITIVE)
+          - name: koi_score
+            description: KOI disposition score (0 to 1)
+          - name: koi_steff
+            description: Stellar effective temperature in Kelvin (raw string from API)
+          - name: koi_srad
+            description: Stellar radius in solar radii (raw string from API)
+          - name: koi_impact
+            description: Impact parameter of the transit
+          - name: ingestion_timestamp
+            description: Timestamp when the record was loaded into Snowflake by Airflow
 
 models:
   - name: stg_exoplanets
-    description: Staging layer - raw NASA exoplanet data with minimal transformations
+    description: >
+      Staging layer for NASA Exoplanet Archive data. Reads from the Snowflake
+      RAW source table, renames columns to human-readable names, casts types
+      using try_cast(), and deduplicates by planet_name.
     columns:
       - name: planet_name
-        description: Primary identifier for the exoplanet
+        description: Human-readable exoplanet name
         tests:
-          - unique
           - not_null
+          - unique
       - name: host_star_name
         description: Name of the host star
-        tests:
-          - not_null
       - name: planet_radius_earth_radii
         description: Planet radius in Earth radii
       - name: planet_mass_earth_masses
@@ -56,7 +68,7 @@ models:
               max_value: 2026
 
   - name: int_exoplanets_enriched
-    description: Intermediate layer - enriched exoplanet data with derived metrics
+    description: Intermediate layer — enriched exoplanet data with derived metrics
     columns:
       - name: planet_name
         description: Exoplanet identifier
@@ -68,7 +80,7 @@ models:
         description: Derived planet density relative to Earth
 
   - name: int_discovery_trends
-    description: Intermediate layer - aggregated discovery statistics and trends
+    description: Intermediate layer — aggregated discovery statistics and trends
     columns:
       - name: trend_type
         description: Type of trend aggregation (by_year, by_method, by_star_type)
@@ -80,7 +92,7 @@ models:
         description: Count of unique host stars
 
   - name: fct_exoplanets
-    description: Fact table - core exoplanet properties and characteristics
+    description: Fact table — core exoplanet properties and characteristics
     columns:
       - name: planet_id
         description: Surrogate key for exoplanet
@@ -113,7 +125,7 @@ models:
         description: Data quality indicator (Complete, Partial, Minimal)
 
   - name: dim_discovery_analysis
-    description: Dimension table - discovery trends and statistics
+    description: Dimension table — discovery trends and statistics
     columns:
       - name: discovery_trend_id
         description: Surrogate key for discovery trend

@@ -1,36 +1,27 @@
-# dbt and data transformation
+# Root requirements.txt
+# ---------------------
+# Used for local development, CI/CD pipelines, and running dbt outside of Docker.
+# This file is NOT used by the Airflow Docker image — see airflow/requirements.txt.
+
+# dbt and Snowflake adapter
 dbt-core==1.7.0
-dbt-sqlite==1.7.0
-dbt-postgres==1.7.0
+dbt-snowflake==1.7.0
 
-# Apache Airflow
-apache-airflow==2.8.0
-apache-airflow-providers-postgres==5.10.0
-apache-airflow-providers-sqlite==3.5.0
-
-# Data processing
+# Data processing (for local scripts and testing)
 pandas==2.1.4
 numpy==1.24.3
 
 # API and HTTP
 requests==2.31.0
 aiohttp==3.9.1
-yfinance
-openai
-
-# Database
-sqlalchemy==2.0.23
-psycopg2-binary==2.9.9
 
 # Utilities
 python-dotenv==1.0.0
 pydantic==2.5.0
 click==8.1.7
 
-# Development
+# Development and testing
 pytest==7.4.3
 pytest-cov==4.1.0
 black==23.12.0
 flake8==6.1.0
-
-
