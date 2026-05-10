@@ -29,12 +29,6 @@ airflow.db
 airflow.cfg.bak
 .airflowignore
 
-# Data files — fetched at runtime, not stored in repo
-data/processed/
-*.csv
-*.json
-*.parquet
-
 # Environment variables
 .env
 .env.local
